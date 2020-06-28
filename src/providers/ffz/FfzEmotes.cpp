@@ -130,7 +130,7 @@ namespace {
                 auto name = EmoteName{jsonEmote.value("name").toString()};
                 auto author = EmoteAuthor{jsonEmote.value("owner")
                                               .toObject()
-                                              .value("display_name")
+                                              .value("name")
                                               .toString()};
                 auto urls = jsonEmote.value("urls").toObject();
 
