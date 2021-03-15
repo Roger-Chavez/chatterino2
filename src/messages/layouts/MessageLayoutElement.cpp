@@ -1,6 +1,7 @@
 #include "messages/layouts/MessageLayoutElement.hpp"
 
 #include "Application.hpp"
+#include "common/QLogging.hpp"
 #include "messages/Emote.hpp"
 #include "messages/Image.hpp"
 #include "messages/MessageElement.hpp"
@@ -217,7 +218,7 @@ void TextLayoutElement::listenToLinkChanges()
             .linkChanged.connect([this]() {
                 // log("Old link: {}", this->getCreator().getLink().value);
                 // log("This link: {}", this->getLink().value);
-                this->setLink(this->getCreator().getLink());  //
+                this->setLink(this->getCreator().getLink());
             }));
 }
 
@@ -269,7 +270,7 @@ int TextLayoutElement::getMouseOverIndex(const QPoint &abs) const
     for (auto i = 0; i < this->getText().size(); i++)
     {
         auto &&text = this->getText();
-        auto width = metrics.width(this->getText()[i]);
+        auto width = metrics.horizontalAdvance(this->getText()[i]);
 
         if (x + width > abs.x())
         {
@@ -308,7 +309,7 @@ int TextLayoutElement::getXFromIndex(int index)
         int x = 0;
         for (int i = 0; i < index; i++)
         {
-            x += metrics.width(this->getText()[i]);
+            x += metrics.horizontalAdvance(this->getText()[i]);
         }
         return x + this->getRect().left();
     }
@@ -392,6 +393,43 @@ int TextIconLayoutElement::getXFromIndex(int index)
     else
     {
         return this->getRect().right();
+    }
+}
+
+//
+// TEXT
+//
+
+MultiColorTextLayoutElement::MultiColorTextLayoutElement(
+    MessageElement &_creator, QString &_text, const QSize &_size,
+    std::vector<PajSegment> segments, FontStyle _style, float _scale)
+    : TextLayoutElement(_creator, _text, _size, QColor{}, _style, _scale)
+    , segments_(segments)
+{
+    this->setText(_text);
+}
+
+void MultiColorTextLayoutElement::paint(QPainter &painter)
+{
+    auto app = getApp();
+
+    painter.setPen(this->color_);
+
+    painter.setFont(app->fonts->getFont(this->style_, this->scale_));
+
+    int xOffset = 0;
+
+    auto metrics = app->fonts->getFontMetrics(this->style_, this->scale_);
+
+    for (const auto &segment : this->segments_)
+    {
+        qCDebug(chatterinoMessage) << "Draw segment:" << segment.text;
+        painter.setPen(segment.color);
+        painter.drawText(QRectF(this->getRect().x() + xOffset,
+                                this->getRect().y(), 10000, 10000),
+                         segment.text,
+                         QTextOption(Qt::AlignLeft | Qt::AlignTop));
+        xOffset += metrics.horizontalAdvance(segment.text);
     }
 }
 

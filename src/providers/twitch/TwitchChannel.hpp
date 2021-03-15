@@ -7,11 +7,13 @@
 #include "common/Outcome.hpp"
 #include "common/UniqueAccess.hpp"
 #include "common/UsernameSet.hpp"
+#include "providers/twitch/ChannelPointReward.hpp"
 #include "providers/twitch/TwitchEmotes.hpp"
 #include "providers/twitch/api/Helix.hpp"
 
 #include <IrcConnection>
 #include <QColor>
+#include <QElapsedTimer>
 #include <QRegularExpression>
 #include <boost/optional.hpp>
 #include <pajlada/signals/signalholder.hpp>
@@ -72,11 +74,13 @@ public:
     virtual bool canReconnect() const override;
     virtual void reconnect() override;
     void refreshTitle();
+    void createClip();
 
     // Data
     const QString &subscriptionUrl();
     const QString &channelUrl();
     const QString &popoutPlayerUrl();
+    int chatterCount();
     virtual bool isLive() const override;
     QString roomId() const;
     AccessGuard<const RoomModes> accessRoomModes() const;
@@ -108,11 +112,19 @@ public:
     pajlada::Signals::NoArgSignal liveStatusChanged;
     pajlada::Signals::NoArgSignal roomModesChanged;
 
+    // Channel point rewards
+    pajlada::Signals::SelfDisconnectingSignal<ChannelPointReward>
+        channelPointRewardAdded;
+    void addChannelPointReward(const ChannelPointReward &reward);
+    bool isChannelPointRewardKnown(const QString &rewardId);
+    boost::optional<ChannelPointReward> channelPointReward(
+        const QString &rewardId) const;
+
 private:
     struct NameOptions {
         QString displayName;
         QString localizedName;
-    };
+    } nameOptions;
 
 protected:
     explicit TwitchChannel(const QString &channelName,
@@ -128,6 +140,7 @@ private:
     void refreshBadges();
     void refreshCheerEmotes();
     void loadRecentMessages();
+    void fetchDisplayName();
 
     void setLive(bool newLiveStatus);
     void setMod(bool value);
@@ -135,11 +148,17 @@ private:
     void setStaff(bool value);
     void setRoomId(const QString &id);
     void setRoomModes(const RoomModes &roomModes_);
+    void setDisplayName(const QString &name);
+    void setLocalizedName(const QString &name);
+
+    const QString &getDisplayName() const override;
+    const QString &getLocalizedName() const override;
 
     // Data
     const QString subscriptionUrl_;
     const QString channelUrl_;
     const QString popoutPlayerUrl_;
+    int chatterCount_;
     UniqueAccess<StreamStatus> streamStatus_;
     UniqueAccess<RoomModes> roomModes_;
 
@@ -158,6 +177,7 @@ private:
     UniqueAccess<std::map<QString, std::map<QString, EmotePtr>>>
         badgeSets_;  // "subscribers": { "0": ... "3": ... "6": ...
     UniqueAccess<std::vector<CheerEmoteSet>> cheerEmoteSets_;
+    UniqueAccess<std::map<QString, ChannelPointReward>> channelPointRewards_;
 
     bool mod_ = false;
     bool vip_ = false;
@@ -169,7 +189,9 @@ private:
     QObject lifetimeGuard_;
     QTimer liveStatusTimer_;
     QTimer chattersListTimer_;
-    QTime titleRefreshedTime_;
+    QElapsedTimer titleRefreshedTimer_;
+    QElapsedTimer clipCreationTimer_;
+    bool isClipCreationInProgress{false};
 
     friend class TwitchIrcServer;
     friend class TwitchMessageBuilder;
